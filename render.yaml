@@ -1,11 +1,10 @@
 services:
   - type: web
     name: kbju-bot
-    runtime: python
+    runtime: image
     plan: free
     region: oregon
-    buildCommand: pip install -r requirements.txt
-    startCommand: python bot.py
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: TELEGRAM_BOT_TOKEN
         value: 8917345219:AAHSx_kW2b8wicYEpe1Nm_DAsHzq3cuSY0I
