@@ -3,10 +3,6 @@ import logging
 import requests
 import urllib.parse
 import json
-# import matplotlib
-# matplotlib.use('Agg')
-# import matplotlib.pyplot as plt
-# import io
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -35,12 +31,7 @@ session = Session()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True)r.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-
-# Загружаем переменные из .env
-load_dotenv()
-TOKEN = os.gete
+    telegram_id = Column(Integer, unique=True)
     username = Column(String)
     first_name = Column(String)
     sex = Column(String)
@@ -136,8 +127,7 @@ def main_menu_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-# --- СТАТИЧЕСКАЯ БАЗА ПРОДУКТОВ (сокращена для читаемости, но полная) ---
-# --- СТАТИЧЕСКАЯ БАЗА ПРОДУКТОВ (расширенная) ---
+# --- СТАТИЧЕСКАЯ БАЗА ПРОДУКТОВ (полная, как у тебя) ---
 PRODUCTS_DB = {
     # === КРУПЫ ===
     'гречка': {'calories': 330, 'protein': 12.6, 'fat': 3.3, 'carbs': 62.1, 'category': 'grain'},
@@ -404,7 +394,7 @@ DRINK_DATA = {
     'чай с молоком': {'base_calories': 15, 'options': {'сахар': {'add': 20}}, 'synonyms': ['чай с молоком']},
 }
 
-# --- СЛОВАРЬ ПЕРЕВОДА (сокращён для примера) ---
+# --- СЛОВАРЬ ПЕРЕВОДА ---
 TRANSLATE_TO_EN = {
     'вода': 'water', 'вино': 'wine', 'кола': 'coca cola', 'сок': 'juice',
     'чай': 'tea', 'кофе': 'coffee', 'молоко': 'milk', 'кефир': 'kefir',
@@ -728,7 +718,6 @@ async def history_day(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===================== ВЕС И ПРОГРЕСС =====================
 async def weight_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Меню для управления весом и просмотра прогресса"""
     user_id = update.effective_user.id
     chat_id = update.effective_chat.id
 
@@ -746,7 +735,6 @@ async def weight_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
 
-    # Показываем последнее взвешивание
     last_weight = session.query(WeightEntry).filter_by(user_id=user_id).order_by(WeightEntry.created_at.desc()).first()
     if last_weight:
         await context.bot.send_message(
@@ -759,14 +747,11 @@ async def weight_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await context.bot.send_message(
             chat_id=chat_id,
-            text="⚖️ У тебя пока нет записей о весе.\n"
-                 "Нажми «Записать текущий вес», чтобы начать отслеживание.\n\n"
-                 "Выбери действие:",
+            text="⚖️ У тебя пока нет записей о весе.\nНажми «Записать текущий вес», чтобы начать отслеживание.\n\nВыбери действие:",
             reply_markup=reply_markup
         )
 
 async def weight_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Запрос на ввод веса"""
     query = update.callback_query
     await query.answer()
     chat_id = update.effective_chat.id
@@ -782,30 +767,23 @@ async def weight_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data['step'] = 'weight_input'
 
 async def handle_weight_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка введённого веса"""
     try:
         user_id = update.effective_user.id
         chat_id = update.effective_chat.id
         weight = float(update.message.text.replace(',', '.'))
 
         if weight < 20 or weight > 300:
-            await context.bot.send_message(
-                chat_id=chat_id,
-                text="❌ Вес должен быть от 20 до 300 кг. Попробуй снова:"
-            )
+            await context.bot.send_message(chat_id=chat_id, text="❌ Вес должен быть от 20 до 300 кг. Попробуй снова:")
             return
 
-        # Сохраняем запись о весе
         weight_entry = WeightEntry(user_id=user_id, weight=weight)
         session.add(weight_entry)
         session.commit()
 
-        # Обновляем профиль пользователя
         user = session.query(User).filter_by(telegram_id=user_id).first()
         if user:
             old_weight = user.weight
             user.weight = weight
-            # Пересчитываем норму калорий
             if user.sex == 'М':
                 bmr = 10 * weight + 6.25 * user.height - 5 * user.age + 5
             else:
@@ -821,7 +799,6 @@ async def handle_weight_input(update: Update, context: ContextTypes.DEFAULT_TYPE
             user.daily_carbs = round((daily_calories - (user.daily_protein * 4 + user.daily_fat * 9)) / 4, 1)
             session.commit()
 
-            # Проверяем прогресс за 3 недели
             three_weeks_ago = datetime.now() - timedelta(days=21)
             old_entries = session.query(WeightEntry).filter(
                 WeightEntry.user_id == user_id,
@@ -845,26 +822,18 @@ async def handle_weight_input(update: Update, context: ContextTypes.DEFAULT_TYPE
 
             response += f"\n🔥 Норма калорий обновлена: **{daily_calories} ккал**"
             await context.bot.send_message(chat_id=chat_id, text=response)
-
         else:
             await context.bot.send_message(chat_id=chat_id, text="✅ Вес сохранён!")
 
         context.user_data['step'] = None
 
     except ValueError:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="❌ Ошибка! Введи число. Например: `58.5`"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Ошибка! Введи число. Например: `58.5`")
     except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"❌ Ошибка: {e}"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Ошибка: {e}")
         logging.error(f"Weight input error: {e}")
 
 async def weight_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает прогресс за неделю"""
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -877,10 +846,7 @@ async def weight_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).order_by(WeightEntry.created_at.asc()).all()
 
     if len(entries) < 2:
-        await query.edit_message_text(
-            "📊 Недостаточно данных для анализа за неделю.\n"
-            "Запиши свой вес минимум 2 раза с интервалом в неделю."
-        )
+        await query.edit_message_text("📊 Недостаточно данных для анализа за неделю. Запиши свой вес минимум 2 раза с интервалом в неделю.")
         return
 
     first = entries[0]
@@ -904,7 +870,6 @@ async def weight_week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def weight_3weeks(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает прогресс за 3 недели"""
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -917,10 +882,7 @@ async def weight_3weeks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ).order_by(WeightEntry.created_at.asc()).all()
 
     if len(entries) < 2:
-        await query.edit_message_text(
-            "📊 Недостаточно данных для анализа за 3 недели.\n"
-            "Нужно минимум 2 записи с интервалом в 3 недели."
-        )
+        await query.edit_message_text("📊 Недостаточно данных для анализа за 3 недели. Нужно минимум 2 записи с интервалом в 3 недели.")
         return
 
     first = entries[0]
@@ -944,7 +906,6 @@ async def weight_3weeks(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(response, reply_markup=InlineKeyboardMarkup(keyboard))
 
 async def weight_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает всю историю веса"""
     query = update.callback_query
     await query.answer()
     user_id = update.effective_user.id
@@ -957,7 +918,7 @@ async def weight_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     response = "📉 **Вся история веса**\n\n"
-    for entry in entries[:20]:  # Показываем последние 20 записей
+    for entry in entries[:20]:
         response += f"📅 {entry.created_at.strftime('%d.%m.%Y %H:%M')}: **{entry.weight:.3f} кг**\n"
 
     if len(entries) > 20:
@@ -968,37 +929,29 @@ async def weight_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # ===================== АВТОМАТИЧЕСКИЕ УВЕДОМЛЕНИЯ =====================
 async def send_weekly_reminder(app: Application):
-    """Отправляет напоминание о взвешивании раз в неделю (воскресенье 10:00)"""
     users = session.query(User).all()
     for user in users:
         try:
             await app.bot.send_message(
                 chat_id=user.telegram_id,
-                text="📅 **Напоминание о взвешивании!**\n\n"
-                     "Прошла неделя — пора записать свой вес!\n"
-                     "⚖️ Нажми на кнопку **«Вес/Прогресс»** в главном меню,\n"
-                     "затем выбери **«Записать текущий вес»**.\n\n"
-                     "📊 Это поможет отслеживать твой прогресс!"
+                text="📅 **Напоминание о взвешивании!**\n\nПрошла неделя — пора записать свой вес!\n⚖️ Нажми на кнопку **«Вес/Прогресс»** в главном меню,\nзатем выбери **«Записать текущий вес»**.\n\n📊 Это поможет отслеживать твой прогресс!"
             )
         except Exception as e:
             logging.error(f"Failed to send reminder to {user.telegram_id}: {e}")
 
 async def send_3week_progress(app: Application):
-    """Отправляет отчёт о прогрессе за 3 недели (раз в 3 недели)"""
     users = session.query(User).all()
     three_weeks_ago = datetime.now() - timedelta(days=21)
     two_weeks_ago = datetime.now() - timedelta(days=14)
     
     for user in users:
         try:
-            # Ищем запись 3 недели назад
             old_entry = session.query(WeightEntry).filter(
                 WeightEntry.user_id == user.telegram_id,
                 WeightEntry.created_at >= three_weeks_ago,
                 WeightEntry.created_at < two_weeks_ago
             ).order_by(WeightEntry.created_at.asc()).first()
             
-            # Ищем последнюю запись
             last_entry = session.query(WeightEntry).filter_by(
                 user_id=user.telegram_id
             ).order_by(WeightEntry.created_at.desc()).first()
@@ -1228,7 +1181,6 @@ async def handle_goal_choice(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
     goal_display = GOAL_DISPLAY.get(goal, goal)
     
-    # Сохраняем начальный вес в историю
     weight_entry = WeightEntry(user_id=telegram_id, weight=weight)
     session.add(weight_entry)
     session.commit()
@@ -1270,10 +1222,7 @@ async def handle_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
     try:
         parts = update.message.text.split()
         if len(parts) < 5:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="❌ Нужно 5 значений: Название, Калории, Белки, Жиры, Углеводы"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Нужно 5 значений: Название, Калории, Белки, Жиры, Углеводы")
             return
         
         name = ' '.join(parts[:-4]).strip()
@@ -1283,20 +1232,10 @@ async def handle_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
         carbs = float(parts[-1])
         
         if calories < 0 or protein < 0 or fat < 0 or carbs < 0:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="❌ Все значения должны быть положительными!"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Все значения должны быть положительными!")
             return
         
-        product = Product(
-            name=name.capitalize(),
-            calories=calories,
-            protein=protein,
-            fat=fat,
-            carbs=carbs,
-            source='user'
-        )
+        product = Product(name=name.capitalize(), calories=calories, protein=protein, fat=fat, carbs=carbs, source='user')
         session.add(product)
         session.commit()
         
@@ -1308,15 +1247,9 @@ async def handle_add_product(update: Update, context: ContextTypes.DEFAULT_TYPE)
         )
         context.user_data['step'] = None
     except ValueError:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="❌ Ошибка! Введи числа правильно.\nПример: Тофу 160 8 10 2"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Ошибка! Введи числа правильно.\nПример: Тофу 160 8 10 2")
     except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"❌ Ошибка: {e}. Попробуй снова."
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Ошибка: {e}. Попробуй снова.")
         logging.error(f"Add product error: {e}")
 
 # --- ВОДА ---
@@ -1324,14 +1257,7 @@ async def add_water(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         parts = update.message.text.split()
         if len(parts) < 2:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="💧 Напиши сколько воды выпил в мл или литрах\n"
-                     "Примеры:\n"
-                     "вода 500 - 500 мл\n"
-                     "вода 1.5 - 1.5 литра\n"
-                     "вода 0.5 - 0.5 литра"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="💧 Напиши сколько воды выпил в мл или литрах\nПримеры:\nвода 500 - 500 мл\nвода 1.5 - 1.5 литра\nвода 0.5 - 0.5 литра")
             return
         
         amount_str = parts[1].replace(',', '.')
@@ -1341,16 +1267,10 @@ async def add_water(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = amount * 1000
         
         if amount <= 0 or amount > 10000:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="❌ Объём должен быть от 1 до 10000 мл."
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Объём должен быть от 1 до 10000 мл.")
             return
         
-        water = Water(
-            user_id=update.effective_user.id,
-            amount=amount
-        )
+        water = Water(user_id=update.effective_user.id, amount=amount)
         session.add(water)
         session.commit()
         
@@ -1368,26 +1288,14 @@ async def add_water(update: Update, context: ContextTypes.DEFAULT_TYPE):
             else:
                 progress += f" (осталось {round((water_norm - water_today) / 1000, 1)}л)"
             
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"✅ Добавлено {amount} мл воды!\n💧 {progress}"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Добавлено {amount} мл воды!\n💧 {progress}")
         else:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text=f"✅ Добавлено {amount} мл воды!"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text=f"✅ Добавлено {amount} мл воды!")
         
     except ValueError:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="❌ Ошибка! Введи число. Пример: вода 500"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Ошибка! Введи число. Пример: вода 500")
     except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"❌ Ошибка: {e}"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Ошибка: {e}")
         logging.error(f"Water error: {e}")
 
 # --- ПРОСМОТР ПРИЁМОВ ПИЩИ ---
@@ -1398,19 +1306,13 @@ async def my_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     if not user:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Сначала заполни профиль командой /profile"
-        )
+        await context.bot.send_message(chat_id=chat_id, text="Сначала заполни профиль командой /profile")
         return
     
     meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).order_by(Meal.meal_time.asc()).all()
     
     if not meals:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="🍽 Сегодня ещё ничего не съедено!"
-        )
+        await context.bot.send_message(chat_id=chat_id, text="🍽 Сегодня ещё ничего не съедено!")
         return
     
     total_cal = sum(m.calories for m in meals)
@@ -1455,11 +1357,7 @@ async def my_food(update: Update, context: ContextTypes.DEFAULT_TYPE):
     keyboard = [[InlineKeyboardButton("🗑 Удалить последний приём", callback_data='delete_last_meal')]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=response,
-        reply_markup=reply_markup
-    )
+    await context.bot.send_message(chat_id=chat_id, text=response, reply_markup=reply_markup)
 
 # --- УДАЛЕНИЕ ПОСЛЕДНЕГО ПРИЁМА ---
 async def delete_last_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1487,11 +1385,7 @@ async def delete_last_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).order_by(Meal.meal_time.asc()).all()
         
         if not meals:
-            await query.edit_message_text(
-                f"🗑 Удалено!\n"
-                f"Продукт: {product_name} ({weight}г) — {calories} ккал\n\n"
-                "🍽 Сегодня больше ничего не съедено!"
-            )
+            await query.edit_message_text(f"🗑 Удалено!\nПродукт: {product_name} ({weight}г) — {calories} ккал\n\n🍽 Сегодня больше ничего не съедено!")
             return
         
         response = "📋 Обновлённый список:\n\n"
@@ -1507,9 +1401,7 @@ async def delete_last_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup = InlineKeyboardMarkup(keyboard)
         
         await query.edit_message_text(
-            f"🗑 Удалено!\n"
-            f"Продукт: {product_name} ({weight}г) — {calories} ккал\n\n"
-            f"{response}",
+            f"🗑 Удалено!\nПродукт: {product_name} ({weight}г) — {calories} ккал\n\n{response}",
             reply_markup=reply_markup
         )
         
@@ -1519,17 +1411,12 @@ async def delete_last_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # --- ПЛАН НА ЗАВТРА ---
 async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Проверяет переедание за последние 2 дня и строит прогрессивный план"""
     user_id = update.effective_user.id
     user = session.query(User).filter_by(telegram_id=user_id).first()
     chat_id = update.effective_chat.id
 
     if not user:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Сначала заполни профиль /profile",
-            reply_markup=main_menu_keyboard()
-        )
+        await context.bot.send_message(chat_id=chat_id, text="Сначала заполни профиль /profile", reply_markup=main_menu_keyboard())
         return
 
     now = datetime.now()
@@ -1541,11 +1428,7 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= two_days_ago).all()
 
     if not meals:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="📊 Нет данных за последние 2 дня для анализа.\n\nДобавь приёмы пищи, чтобы я мог составить план!",
-            reply_markup=main_menu_keyboard()
-        )
+        await context.bot.send_message(chat_id=chat_id, text="📊 Нет данных за последние 2 дня для анализа.\n\nДобавь приёмы пищи, чтобы я мог составить план!", reply_markup=main_menu_keyboard())
         return
 
     days_data = {}
@@ -1585,22 +1468,12 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 m["calories"] = int(m["calories"] * ratio)
         elif target_calories > base_total:
             extra = target_calories - base_total
-            meals_base.append({
-                "name": "Дополнительный перекус",
-                "products": f"Орехи/фрукты (~{extra} ккал)",
-                "calories": extra
-            })
+            meals_base.append({"name": "Дополнительный перекус", "products": f"Орехи/фрукты (~{extra} ккал)", "calories": extra})
 
         total_plan = sum(m["calories"] for m in meals_base)
 
         plan_json = json.dumps(meals_base, ensure_ascii=False)
-        new_plan = DailyPlan(
-            user_id=user_id,
-            plan_date=now,
-            meals=plan_json,
-            total_calories=total_plan,
-            target_calories=target_calories
-        )
+        new_plan = DailyPlan(user_id=user_id, plan_date=now, meals=plan_json, total_calories=total_plan, target_calories=target_calories)
         session.add(new_plan)
         session.commit()
 
@@ -1617,47 +1490,27 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
         response += f"\n📊 Всего по плану: {total_plan} ккал"
         response += f"\n💡 Это **рекомендация**, а не строгое предписание."
 
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=response,
-            reply_markup=main_menu_keyboard()
-        )
-
+        await context.bot.send_message(chat_id=chat_id, text=response, reply_markup=main_menu_keyboard())
     else:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text=f"✅ Ты в норме! Перееданий за последние 2 дня: {len(overeat_days)}\nПродолжай следить за питанием! 💪",
-            reply_markup=main_menu_keyboard()
-        )
+        await context.bot.send_message(chat_id=chat_id, text=f"✅ Ты в норме! Перееданий за последние 2 дня: {len(overeat_days)}\nПродолжай следить за питанием! 💪", reply_markup=main_menu_keyboard())
 
 # --- ОСНОВНЫЕ ФУНКЦИИ ---
 async def add_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="🍽 Напиши, что ты съел, в формате:\n"
-             "Продукт вес (например: Гречка 100)\n"
-             "Я спрошу способ приготовления."
-    )
+    await context.bot.send_message(chat_id=update.effective_chat.id, text="🍽 Напиши, что ты съел, в формате:\nПродукт вес (например: Гречка 100)\nЯ спрошу способ приготовления.")
     context.user_data['step'] = 'meal'
 
 async def handle_meal_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         parts = update.message.text.split()
         if len(parts) < 2:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="❌ Напиши продукт и вес через пробел. Например: Гречка 100"
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Напиши продукт и вес через пробел. Например: Гречка 100")
             return
         
         product_name = ' '.join(parts[:-1])
         weight = float(parts[-1])
         
         if weight <= 0 or weight > 5000:
-            await context.bot.send_message(
-                chat_id=update.effective_chat.id,
-                text="❌ Вес должен быть от 1 до 5000 грамм."
-            )
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Вес должен быть от 1 до 5000 грамм.")
             return
         
         context.user_data['product_name'] = product_name.lower()
@@ -1673,22 +1526,12 @@ async def handle_meal_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("💨 На пару", callback_data='steamed')],
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"Выбери способ приготовления для {product_name}:",
-            reply_markup=reply_markup
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"Выбери способ приготовления для {product_name}:", reply_markup=reply_markup)
         context.user_data['step'] = 'cooking_method'
     except ValueError:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="❌ Ошибка! Вес должен быть числом. Например: Гречка 100"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Ошибка! Вес должен быть числом. Например: Гречка 100")
     except Exception as e:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="❌ Ошибка. Попробуй снова /add_meal"
-        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"❌ Ошибка: {e}")
         logging.error(f"Meal error: {e}")
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1700,7 +1543,6 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
     
-    # Проверяем, не вводит ли пользователь вес
     if context.user_data.get('step') == 'weight_input':
         await handle_weight_input(update, context)
         return
@@ -1713,13 +1555,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(parts) >= 2:
         try:
             product_name = ' '.join(parts[:-1])
-            amount = float(parts[-1])  # Пока считаем как число (граммы или мл)
+            amount = float(parts[-1])
             
             if amount <= 0 or amount > 5000:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text="❌ Количество должно быть от 1 до 5000 (грамм или мл)."
-                )
+                await context.bot.send_message(chat_id=chat_id, text="❌ Количество должно быть от 1 до 5000 (грамм или мл).")
                 return
             
             found_key, product_data, source = find_product_in_db(product_name, context)
@@ -1727,15 +1566,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 context.user_data['product_name'] = product_name
                 context.user_data['weight'] = amount
                 
-                # === ОПРЕДЕЛЯЕМ, ЭТО НАПИТОК ИЛИ ЕДА ===
                 is_drink = product_data.get('category') == 'drink'
-                
-                # Для напитков используем мл, для еды — граммы
-                weight_for_calc = amount  # по умолчанию
                 unit_display = "мл" if is_drink else "г"
                 
                 if is_drink:
-                    # Для напитков калорийность считается на 100 мл
                     calories = product_data['calories'] * (amount / 100)
                     protein = product_data.get('protein', 0) * (amount / 100)
                     fat = product_data.get('fat', 0) * (amount / 100)
@@ -1744,7 +1578,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     meal = Meal(
                         user_id=update.effective_user.id,
                         product_name=found_key,
-                        weight=amount,  # сохраняем как мл
+                        weight=amount,
                         cooking_method='raw',
                         calories=calories,
                         protein=protein,
@@ -1764,18 +1598,10 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     
                     await context.bot.send_message(
                         chat_id=chat_id,
-                        text=f"✅ Добавлено!\n"
-                             f"Продукт: {found_key}\n"
-                             f"Объём: {amount} {unit_display}\n"
-                             f"🔥 Калорийность: {round(calories, 1)} ккал"
-                             f"\n🥩 Белки: {round(protein, 1)}г"
-                             f"\n🧈 Жиры: {round(fat, 1)}г"
-                             f"\n🍞 Углеводы: {round(carbs, 1)}г"
-                             f"{hint}"
+                        text=f"✅ Добавлено!\nПродукт: {found_key}\nОбъём: {amount} {unit_display}\n🔥 Калорийность: {round(calories, 1)} ккал\n🥩 Белки: {round(protein, 1)}г\n🧈 Жиры: {round(fat, 1)}г\n🍞 Углеводы: {round(carbs, 1)}г{hint}"
                     )
                     return
                 else:
-                    # Для еды — показываем меню выбора способа приготовления
                     keyboard = [
                         [InlineKeyboardButton("🥩 Сырой", callback_data='raw')],
                         [InlineKeyboardButton("🍲 Вареный", callback_data='boiled')],
@@ -1785,26 +1611,15 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         [InlineKeyboardButton("💨 На пару", callback_data='steamed')],
                     ]
                     reply_markup = InlineKeyboardMarkup(keyboard)
-                    await context.bot.send_message(
-                        chat_id=chat_id,
-                        text=f"Выбери способ приготовления для {product_name} ({amount}г):",
-                        reply_markup=reply_markup
-                    )
+                    await context.bot.send_message(chat_id=chat_id, text=f"Выбери способ приготовления для {product_name} ({amount}г):", reply_markup=reply_markup)
                     context.user_data['step'] = 'cooking_method'
                     return
             else:
-                await context.bot.send_message(
-                    chat_id=chat_id,
-                    text=f"❌ Продукт '{product_name}' не найден.\n"
-                         "Попробуй написать по-другому:\n"
-                         "- На английском (avocado, tofu)\n"
-                         "- Или добавь вручную командой /add_my_product"
-                )
+                await context.bot.send_message(chat_id=chat_id, text=f"❌ Продукт '{product_name}' не найден.\nПопробуй написать по-другому:\n- На английском (avocado, tofu)\n- Или добавь вручную командой /add_my_product")
                 return
         except ValueError:
             pass
     
-    # Обработка шагов (профиль, еда и т.д.)
     step = context.user_data.get('step')
     if step == 'profile_data':
         await handle_profile_input(update, context)
@@ -1820,19 +1635,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(
         chat_id=chat_id,
-        text="Я не понимаю эту команду.\n"
-             "Просто напиши продукт и вес (например: Гречка 100) или напиток (кофе 100)\n"
-             "☕ По умолчанию: кофе 100 = с молоком и сахаром (35 ккал)\n"
-             "   без молока: 'кофе без молока'\n"
-             "   без сахара: 'кофе без сахара'\n"
-             "   чёрный: 'кофе черный'\n"
-             "🍷 Алкоголь указывай в мл: 'вино 450', 'пиво 500', 'водка 50'\n"
-             "Воду добавляй: вода 500\n"
-             "Вес записывай через кнопку «Вес/Прогресс»\n"
-             "Посмотреть свои приёмы: /my_food\n"
-             "План на завтра: /plan\n"
-             "Используй команды:\n"
-             "/start, /profile, /add_my_product, /stats, /help"
+        text="Я не понимаю эту команду.\nПросто напиши продукт и вес (например: Гречка 100) или напиток (кофе 100)\n☕ По умолчанию: кофе 100 = с молоком и сахаром (35 ккал)\n   без молока: 'кофе без молока'\n   без сахара: 'кофе без сахара'\n   чёрный: 'кофе черный'\n🍷 Алкоголь указывай в мл: 'вино 450', 'пиво 500', 'водка 50'\nВоду добавляй: вода 500\nВес записывай через кнопку «Вес/Прогресс»\nПосмотреть свои приёмы: /my_food\nПлан на завтра: /plan\nИспользуй команды:\n/start, /profile, /add_my_product, /stats, /help"
     )
 
 async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1848,9 +1651,7 @@ async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TY
         context.user_data['step'] = None
         return
     
-    total_calories, total_protein, total_fat, total_carbs, base_calories = calculate_calories_and_bju(
-        product_name, weight, method, product_data
-    )
+    total_calories, total_protein, total_fat, total_carbs, base_calories = calculate_calories_and_bju(product_name, weight, method, product_data)
     
     meal = Meal(
         user_id=update.effective_user.id,
@@ -1869,16 +1670,7 @@ async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TY
     unit_info = context.user_data.get('unit_info', '')
     weight_display = f"{weight}г" if not unit_info else unit_info
     
-    response = f"✅ Добавлено!\n"
-    response += f"Продукт: {found_key}\n"
-    response += f"Вес: {weight_display}\n"
-    response += f"Способ: {method_display}\n"
-    response += f"Источник: {source}\n"
-    response += f"База (100г сырого): {base_calories} ккал\n"
-    response += f"🔥 Калорийность: {round(total_calories, 1)} ккал"
-    response += f"\n🥩 Белки: {round(total_protein, 1)}г"
-    response += f"\n🧈 Жиры: {round(total_fat, 1)}г"
-    response += f"\n🍞 Углеводы: {round(total_carbs, 1)}г"
+    response = f"✅ Добавлено!\nПродукт: {found_key}\nВес: {weight_display}\nСпособ: {method_display}\nИсточник: {source}\nБаза (100г сырого): {base_calories} ккал\n🔥 Калорийность: {round(total_calories, 1)} ккал\n🥩 Белки: {round(total_protein, 1)}г\n🧈 Жиры: {round(total_fat, 1)}г\n🍞 Углеводы: {round(total_carbs, 1)}г"
     
     if method == 'fried':
         response += "\n\n💡 При жарке добавляется ~40 ккал на 100г от масла."
@@ -1891,16 +1683,12 @@ async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['step'] = None
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает статистику за сегодня (текстовая версия)"""
     user_id = update.effective_user.id
     user = session.query(User).filter_by(telegram_id=user_id).first()
     chat_id = update.effective_chat.id
     
     if not user:
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Сначала заполни профиль командой /profile"
-        )
+        await context.bot.send_message(chat_id=chat_id, text="Сначала заполни профиль командой /profile")
         return
     
     today = datetime.now().date()
@@ -1938,15 +1726,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     await context.bot.send_message(
         chat_id=chat_id,
-        text=f"📊 Твоя статистика за сегодня:\n"
-             f"Цель: {goal_display}\n\n"
-             f"🔥 Калории: {round(total_calories, 1)} / {user.daily_calories} ккал (осталось {round(remaining_cal, 1)})\n"
-             f"🥩 Белки: {round(total_protein, 1)} / {user.daily_protein}г (осталось {round(remaining_protein, 1)})\n"
-             f"🧈 Жиры: {round(total_fat, 1)} / {user.daily_fat}г (осталось {round(remaining_fat, 1)})\n"
-             f"🍞 Углеводы: {round(total_carbs, 1)} / {user.daily_carbs}г (осталось {round(remaining_carbs, 1)})\n\n"
-             f"💧 Вода: {round(water_today / 1000, 1)}л из {round(water_norm / 1000, 1)}л\n"
-             f"{water_status}\n\n"
-             f"{status}"
+        text=f"📊 Твоя статистика за сегодня:\nЦель: {goal_display}\n\n🔥 Калории: {round(total_calories, 1)} / {user.daily_calories} ккал (осталось {round(remaining_cal, 1)})\n🥩 Белки: {round(total_protein, 1)} / {user.daily_protein}г (осталось {round(remaining_protein, 1)})\n🧈 Жиры: {round(total_fat, 1)} / {user.daily_fat}г (осталось {round(remaining_fat, 1)})\n🍞 Углеводы: {round(total_carbs, 1)} / {user.daily_carbs}г (осталось {round(remaining_carbs, 1)})\n\n💧 Вода: {round(water_today / 1000, 1)}л из {round(water_norm / 1000, 1)}л\n{water_status}\n\n{status}"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1989,8 +1769,6 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # --- ОБРАБОТЧИК МЕНЮ ---
-
-# --- ОБРАБОТЧИК МЕНЮ ---
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -1999,90 +1777,42 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     
     if data == 'menu_add_food':
-        await query.edit_message_text(
-            "🍽 Чтобы добавить еду, просто напиши:\n"
-            "`название продукта вес`\n"
-            "Например: `гречка 100`, `курица 200`, `яблоко 150`\n\n"
-            "☕ Для напитков: `кофе 100` (по умолчанию с молоком и сахаром)\n"
-            "Варианты: `кофе без молока 100`, `кофе черный 100`\n\n"
-            "💧 Для воды: `вода 500`"
-        )
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
-        
+        await query.edit_message_text("🍽 Чтобы добавить еду, просто напиши:\n`название продукта вес`\nНапример: `гречка 100`, `курица 200`, `яблоко 150`\n\n☕ Для напитков: `кофе 100` (по умолчанию с молоком и сахаром)\nВарианты: `кофе без молока 100`, `кофе черный 100`\n\n💧 Для воды: `вода 500`")
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
     elif data == 'menu_water':
-        await query.edit_message_text(
-            "💧 Чтобы добавить воду, напиши:\n"
-            "`вода 500` — 500 мл\n"
-            "`вода 1.5` — 1.5 литра"
-        )
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
-        
+        await query.edit_message_text("💧 Чтобы добавить воду, напиши:\n`вода 500` — 500 мл\n`вода 1.5` — 1.5 литра")
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
     elif data == 'menu_stats':
         await query.edit_message_text("📊 Загружаю статистику... 🔄")
         await stats(update, context)
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
-        
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
     elif data == 'menu_my_food':
         await query.edit_message_text("📋 Загружаю твои приёмы... 🔄")
         await my_food(update, context)
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
-        
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
     elif data == 'menu_plan':
         await query.edit_message_text("📅 Генерирую план питания... 🔄")
-        context.user_data['step'] = None  # Сбрасываем состояние
+        context.user_data['step'] = None
         await check_overeating(update, context)
-        # Меню показывается внутри check_overeating
-        
     elif data == 'menu_history':
         await history(update, context)
-        
     elif data == 'menu_weight':
         await weight_menu(update, context)
-        
     elif data == 'weight_add':
         await weight_add(update, context)
-        
     elif data == 'weight_week':
         await weight_week(update, context)
-        
     elif data == 'weight_3weeks':
         await weight_3weeks(update, context)
-        
     elif data == 'weight_history':
         await weight_history(update, context)
-        
     elif data == 'menu_profile':
         await query.edit_message_text("⚙️ Загружаю профиль... 🔄")
         await profile(update, context)
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
-        
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
     elif data == 'menu_help':
         await help_command(update, context)
-        await context.bot.send_message(
-            chat_id=chat_id,
-            text="Выбери действие:",
-            reply_markup=main_menu_keyboard()
-        )
+        await context.bot.send_message(chat_id=chat_id, text="Выбери действие:", reply_markup=main_menu_keyboard())
 
 async def send_daily_plan(app: Application):
     users = session.query(User).all()
@@ -2105,10 +1835,7 @@ async def send_daily_plan(app: Application):
                 overeat_days.append(days_data[day] - user.daily_calories)
         
         if len(overeat_days) >= 2:
-            await app.bot.send_message(
-                chat_id=user_id,
-                text="📅 Напоминание: у тебя было переедание 2 дня подряд. Воспользуйся командой /plan, чтобы получить персонализированный план питания на сегодня."
-            )
+            await app.bot.send_message(chat_id=user_id, text="📅 Напоминание: у тебя было переедание 2 дня подряд. Воспользуйся командой /plan, чтобы получить персонализированный план питания на сегодня.")
 
 # --- ЗАПУСК БОТА ---
 def main():
@@ -2126,28 +1853,9 @@ def main():
         ])
         
         scheduler = AsyncIOScheduler(timezone="Asia/Almaty")
-        
-        # Ежедневный план в 00:00
-        scheduler.add_job(
-            send_daily_plan,
-            CronTrigger(hour=0, minute=0, timezone="Asia/Almaty"),
-            args=[app]
-        )
-        
-        # Напоминание о взвешивании каждое воскресенье в 10:00
-        scheduler.add_job(
-            send_weekly_reminder,
-            CronTrigger(day_of_week='sun', hour=10, minute=0, timezone="Asia/Almaty"),
-            args=[app]
-        )
-        
-        # Отчёт о прогрессе за 3 недели (каждые 3 недели в воскресенье в 12:00)
-        scheduler.add_job(
-            send_3week_progress,
-            CronTrigger(day_of_week='sun', hour=12, minute=0, timezone="Asia/Almaty"),
-            args=[app]
-        )
-        
+        scheduler.add_job(send_daily_plan, CronTrigger(hour=0, minute=0, timezone="Asia/Almaty"), args=[app])
+        scheduler.add_job(send_weekly_reminder, CronTrigger(day_of_week='sun', hour=10, minute=0, timezone="Asia/Almaty"), args=[app])
+        scheduler.add_job(send_3week_progress, CronTrigger(day_of_week='sun', hour=12, minute=0, timezone="Asia/Almaty"), args=[app])
         scheduler.start()
         print("⏰ Планировщик запущен!")
         print("📅 Ежедневные планы в 00:00")
