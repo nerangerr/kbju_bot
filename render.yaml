@@ -7,7 +7,7 @@ services:
     dockerfilePath: ./Dockerfile
     envVars:
       - key: TELEGRAM_BOT_TOKEN
-        value: 8934826321:AAE7mag6hI6OTNRJSgfaY4EB5tjmHhndiWU
+        value: 8917345219:AAHSx_kW2b8wicYEpe1Nm_DAsHzq3cuSY0I
       - key: DATABASE_URL
         value: postgresql://postgres.yhwlbjnbdlsvmglodpxp:ctr20080407rozasingapore@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
       - key: ADMIN_TELEGRAM_ID
