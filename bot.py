@@ -1839,60 +1839,66 @@ async def send_daily_plan(app: Application):
 
 # --- ЗАПУСК БОТА ---
 def main():
-    application = Application.builder().token(TOKEN).build()
-    
-    async def post_init(app):
-        await app.bot.set_my_commands([
-            BotCommand("start", "Приветствие"),
-            BotCommand("profile", "Профиль"),
-            BotCommand("add_my_product", "Добавить продукт"),
-            BotCommand("my_food", "Мои приёмы"),
-            BotCommand("stats", "Статистика"),
-            BotCommand("plan", "План на завтра"),
-            BotCommand("help", "Помощь"),
-        ])
+    try:
+        application = Application.builder().token(TOKEN).build()
         
-        scheduler = AsyncIOScheduler(timezone="Asia/Almaty")
-        scheduler.add_job(send_daily_plan, CronTrigger(hour=0, minute=0, timezone="Asia/Almaty"), args=[app])
-        scheduler.add_job(send_weekly_reminder, CronTrigger(day_of_week='sun', hour=10, minute=0, timezone="Asia/Almaty"), args=[app])
-        scheduler.add_job(send_3week_progress, CronTrigger(day_of_week='sun', hour=12, minute=0, timezone="Asia/Almaty"), args=[app])
-        scheduler.start()
-        print("⏰ Планировщик запущен!")
-        print("📅 Ежедневные планы в 00:00")
-        print("📅 Напоминание о весе каждое воскресенье в 10:00")
-        print("📅 Отчёт за 3 недели каждое воскресенье в 12:00")
-    
-    application.post_init = post_init
-    
-    application.add_handler(CommandHandler("start", start))
-    application.add_handler(CommandHandler("profile", profile))
-    application.add_handler(CommandHandler("add_my_product", add_my_product))
-    application.add_handler(CommandHandler("my_food", my_food))
-    application.add_handler(CommandHandler("stats", stats))
-    application.add_handler(CommandHandler("plan", check_overeating))
-    application.add_handler(CommandHandler("help", help_command))
-    
-    application.add_handler(CallbackQueryHandler(handle_activity_choice, pattern='^[0-9.]+$'))
-    application.add_handler(CallbackQueryHandler(handle_goal_choice, pattern='^(lose|maintain|gain)$'))
-    application.add_handler(CallbackQueryHandler(delete_last_meal, pattern='^delete_last_meal$'))
-    application.add_handler(CallbackQueryHandler(handle_cooking_method, pattern='^(raw|boiled|fried|deep_fried|baked|steamed)$'))
-    application.add_handler(CallbackQueryHandler(menu_callback, pattern='^menu_'))
-    application.add_handler(CallbackQueryHandler(history_day, pattern='^history_day_'))
-    application.add_handler(CallbackQueryHandler(weight_add, pattern='^weight_add$'))
-    application.add_handler(CallbackQueryHandler(weight_week, pattern='^weight_week$'))
-    application.add_handler(CallbackQueryHandler(weight_3weeks, pattern='^weight_3weeks$'))
-    application.add_handler(CallbackQueryHandler(weight_history, pattern='^weight_history$'))
-    
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
+        async def post_init(app):
+            await app.bot.set_my_commands([
+                BotCommand("start", "Приветствие"),
+                BotCommand("profile", "Профиль"),
+                BotCommand("add_my_product", "Добавить продукт"),
+                BotCommand("my_food", "Мои приёмы"),
+                BotCommand("stats", "Статистика"),
+                BotCommand("plan", "План на завтра"),
+                BotCommand("help", "Помощь"),
+            ])
+            
+            scheduler = AsyncIOScheduler(timezone="Asia/Almaty")
+            scheduler.add_job(send_daily_plan, CronTrigger(hour=0, minute=0, timezone="Asia/Almaty"), args=[app])
+            scheduler.add_job(send_weekly_reminder, CronTrigger(day_of_week='sun', hour=10, minute=0, timezone="Asia/Almaty"), args=[app])
+            scheduler.add_job(send_3week_progress, CronTrigger(day_of_week='sun', hour=12, minute=0, timezone="Asia/Almaty"), args=[app])
+            scheduler.start()
+            print("⏰ Планировщик запущен!")
+            print("📅 Ежедневные планы в 00:00")
+            print("📅 Напоминание о весе каждое воскресенье в 10:00")
+            print("📅 Отчёт за 3 недели каждое воскресенье в 12:00")
+        
+        application.post_init = post_init
+        
+        application.add_handler(CommandHandler("start", start))
+        application.add_handler(CommandHandler("profile", profile))
+        application.add_handler(CommandHandler("add_my_product", add_my_product))
+        application.add_handler(CommandHandler("my_food", my_food))
+        application.add_handler(CommandHandler("stats", stats))
+        application.add_handler(CommandHandler("plan", check_overeating))
+        application.add_handler(CommandHandler("help", help_command))
+        
+        application.add_handler(CallbackQueryHandler(handle_activity_choice, pattern='^[0-9.]+$'))
+        application.add_handler(CallbackQueryHandler(handle_goal_choice, pattern='^(lose|maintain|gain)$'))
+        application.add_handler(CallbackQueryHandler(delete_last_meal, pattern='^delete_last_meal$'))
+        application.add_handler(CallbackQueryHandler(handle_cooking_method, pattern='^(raw|boiled|fried|deep_fried|baked|steamed)$'))
+        application.add_handler(CallbackQueryHandler(menu_callback, pattern='^menu_'))
+        application.add_handler(CallbackQueryHandler(history_day, pattern='^history_day_'))
+        application.add_handler(CallbackQueryHandler(weight_add, pattern='^weight_add$'))
+        application.add_handler(CallbackQueryHandler(weight_week, pattern='^weight_week$'))
+        application.add_handler(CallbackQueryHandler(weight_3weeks, pattern='^weight_3weeks$'))
+        application.add_handler(CallbackQueryHandler(weight_history, pattern='^weight_history$'))
+        
+        application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
-    print("🤖 Бот запущен и готов к работе!")
-    print("☕ По умолчанию: кофе 100 = с молоком и сахаром (35 ккал)")
-    print("💧 Вода: вода 500")
-    print("📋 Приёмы: /my_food")
-    print("📅 План: /plan")
-    print("📜 История: кнопка в меню")
-    print("⚖️ Вес/Прогресс: кнопка в меню")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+        print("🤖 Бот запущен и готов к работе!")
+        print("☕ По умолчанию: кофе 100 = с молоком и сахаром (35 ккал)")
+        print("💧 Вода: вода 500")
+        print("📋 Приёмы: /my_food")
+        print("📅 План: /plan")
+        print("📜 История: кнопка в меню")
+        print("⚖️ Вес/Прогресс: кнопка в меню")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    except Exception as e:
+        logging.error(f"Bot crashed: {e}")
+        import time
+        time.sleep(60)  # Подождать перед перезапуском
 
 # ========== HEALTH CHECK ДЛЯ RENDER ==========
 import asyncio
