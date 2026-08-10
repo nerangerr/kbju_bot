@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: kbju-bot
+    runtime: python
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        value: 8917345219:AAHSx_kW2b8wicYEpe1Nm_DAsHzq3cuSY0I
+      - key: DATABASE_URL
+        value: postgresql://postgres.yhwlbjnbdlsvmglodpxp:ctr20080407rozasingapore@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+      - key: ADMIN_TELEGRAM_ID
+        value: 1135811406
+      - key: APP_TIMEZONE
+        value: Asia/Almaty
+      - key: EDAMAM_APP_ID
+        value: a368b5a4
+      - key: EDAMAM_APP_KEY
+        value: 48f6eaa48a17aba84fb62c0e6eb18e1c
