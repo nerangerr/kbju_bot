@@ -3,10 +3,10 @@ import logging
 import requests
 import urllib.parse
 import json
-#import matplotlib
-#matplotlib.use('Agg')
-#import matplotlib.pyplot as plt
-#import io
+# import matplotlib
+# matplotlib.use('Agg')
+# import matplotlib.pyplot as plt
+# import io
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -14,7 +14,12 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
-from apschedulenv('TELEGRAM_BOT_TOKEN')
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+# Загружаем переменные из .env
+load_dotenv()
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_ID = int(os.getenv('ADMIN_TELEGRAM_ID', 0))
 EDAMAM_APP_ID = os.getenv('EDAMAM_APP_ID', '')
