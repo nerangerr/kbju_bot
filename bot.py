@@ -3,10 +3,10 @@ import logging
 import requests
 import urllib.parse
 import json
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import io
+#import matplotlib
+#matplotlib.use('Agg')
+#import matplotlib.pyplot as plt
+#import io
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -14,12 +14,7 @@ from telegram.ext import Application, CommandHandler, CallbackQueryHandler, Mess
 from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-
-# Загружаем переменные из .env
-load_dotenv()
-TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+from apschedulenv('TELEGRAM_BOT_TOKEN')
 DATABASE_URL = os.getenv('DATABASE_URL')
 ADMIN_ID = int(os.getenv('ADMIN_TELEGRAM_ID', 0))
 EDAMAM_APP_ID = os.getenv('EDAMAM_APP_ID', '')
@@ -35,7 +30,12 @@ session = Session()
 class User(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
-    telegram_id = Column(Integer, unique=True)
+    telegram_id = Column(Integer, unique=True)r.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
+
+# Загружаем переменные из .env
+load_dotenv()
+TOKEN = os.gete
     username = Column(String)
     first_name = Column(String)
     sex = Column(String)
@@ -1886,7 +1886,7 @@ async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TY
     context.user_data['step'] = None
 
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает статистику за сегодня с графиками"""
+    """Показывает статистику за сегодня (текстовая версия)"""
     user_id = update.effective_user.id
     user = session.query(User).filter_by(telegram_id=user_id).first()
     chat_id = update.effective_chat.id
@@ -1899,182 +1899,49 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     today = datetime.now().date()
-    week_ago = today - timedelta(days=7)
+    meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).all()
     
-    # === ДАННЫЕ ЗА СЕГОДНЯ ===
-    meals_today = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).all()
+    total_calories = sum(m.calories for m in meals)
+    total_protein = sum(m.protein for m in meals)
+    total_fat = sum(m.fat for m in meals)
+    total_carbs = sum(m.carbs for m in meals)
     
-    total_calories = sum(m.calories for m in meals_today)
-    total_protein = sum(m.protein for m in meals_today)
-    total_fat = sum(m.fat for m in meals_today)
-    total_carbs = sum(m.carbs for m in meals_today)
-    
-    # === ДАННЫЕ ЗА НЕДЕЛЮ ===
-    meals_week = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= week_ago).all()
-    
-    days_data = {}
-    for meal in meals_week:
-        day = meal.meal_time.date()
-        if day not in days_data:
-            days_data[day] = {'calories': 0, 'protein': 0, 'fat': 0, 'carbs': 0}
-        days_data[day]['calories'] += meal.calories
-        days_data[day]['protein'] += meal.protein
-        days_data[day]['fat'] += meal.fat
-        days_data[day]['carbs'] += meal.carbs
-    
-    # === ВОДА ===
     water_entries = session.query(Water).filter_by(user_id=user_id).all()
     water_today = sum(w.amount for w in water_entries if w.created_at.date() == today)
     water_norm = user.weight * 30
     
-    # === СОЗДАНИЕ ГРАФИКОВ ===
-    plt.style.use('dark_background')
-    fig = plt.figure(figsize=(14, 10), facecolor='#1a1a2e')
-    fig.suptitle(f'📊 Твоя статистика за {today.strftime("%d.%m.%Y")}', 
-                 fontsize=18, color='white', fontweight='bold')
+    remaining_cal = user.daily_calories - total_calories
+    remaining_protein = user.daily_protein - total_protein
+    remaining_fat = user.daily_fat - total_fat
+    remaining_carbs = user.daily_carbs - total_carbs
     
-    # === ГРАФИК 1: КРУГОВАЯ ДИАГРАММА БЖУ ===
-    ax1 = fig.add_subplot(2, 2, 1)
-    bju_values = [total_protein, total_fat, total_carbs]
-    bju_labels = [f'🥩 Белки\n{total_protein:.1f}г', 
-                  f'🧈 Жиры\n{total_fat:.1f}г', 
-                  f'🍞 Углеводы\n{total_carbs:.1f}г']
-    colors = ['#4CAF50', '#FF9800', '#2196F3']
-    
-    if sum(bju_values) > 0:
-        wedges, texts, autotexts = ax1.pie(bju_values, labels=bju_labels, colors=colors,
-                                           autopct='%1.1f%%', startangle=90,
-                                           textprops={'color': 'white', 'fontsize': 10})
-        for autotext in autotexts:
-            autotext.set_color('white')
-            autotext.set_fontsize(11)
-            autotext.set_fontweight('bold')
+    if remaining_cal > 200:
+        status = "✅ Ты в норме! Можно еще поесть 😊"
+    elif 0 <= remaining_cal <= 200:
+        status = "🎯 Почти точно! Можно остановиться."
     else:
-        ax1.text(0.5, 0.5, 'Нет данных\nза сегодня', 
-                ha='center', va='center', color='white', fontsize=14)
-    ax1.set_title('🍩 Соотношение БЖУ', color='white', fontsize=13, fontweight='bold')
+        status = "⚠️ Перебор! Завтра постарайся меньше."
     
-    # === ГРАФИК 2: СТОЛБЦЫ (СЪЕДЕНО VS НОРМА) ===
-    ax2 = fig.add_subplot(2, 2, 2)
-    categories = ['Калории', 'Белки', 'Жиры', 'Углеводы']
-    eaten = [total_calories, total_protein, total_fat, total_carbs]
-    norm = [user.daily_calories, user.daily_protein, user.daily_fat, user.daily_carbs]
-    
-    x = range(len(categories))
-    width = 0.35
-    
-    bars1 = ax2.bar([i - width/2 for i in x], eaten, width, label='Съедено', color='#4CAF50', alpha=0.8)
-    bars2 = ax2.bar([i + width/2 for i in x], norm, width, label='Норма', color='#FF5722', alpha=0.5)
-    
-    ax2.set_ylabel('Количество', color='white', fontsize=10)
-    ax2.set_title('⚖️ Съедено vs Норма', color='white', fontsize=13, fontweight='bold')
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(categories, color='white', fontsize=10)
-    ax2.tick_params(colors='white')
-    ax2.legend(loc='upper right', facecolor='#1a1a2e', edgecolor='white', 
-               labelcolor='white', fontsize=9)
-    
-    # Добавляем значения на столбцы
-    for bar, val in zip(bars1, eaten):
-        if val > 0:
-            ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
-                    f'{val:.0f}', ha='center', va='bottom', color='white', fontsize=8)
-    for bar, val in zip(bars2, norm):
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
-                f'{val:.0f}', ha='center', va='bottom', color='white', fontsize=8)
-    
-    # === ГРАФИК 3: ВОДА ===
-    ax3 = fig.add_subplot(2, 2, 3)
-    water_percent = min(water_today / water_norm * 100, 100)
-    
-    colors_water = ['#4CAF50' if water_percent >= 100 else '#FF9800' if water_percent >= 70 else '#F44336']
-    ax3.barh(['💧 Вода'], [water_percent], color=colors_water[0], height=0.5)
-    ax3.barh(['💧 Вода'], [100], color='white', alpha=0.1, height=0.5)
-    ax3.set_xlim(0, 100)
-    ax3.set_xlabel('Процент нормы (%)', color='white', fontsize=10)
-    ax3.set_title(f'💧 Вода: {water_today/1000:.1f}л / {water_norm/1000:.1f}л', 
-                  color='white', fontsize=13, fontweight='bold')
-    ax3.tick_params(colors='white')
-    
-    if water_percent > 0:
-        ax3.text(water_percent/2, 0, f'{water_percent:.0f}%', 
-                ha='center', va='center', color='white', fontsize=14, fontweight='bold')
-    
-    if water_percent >= 100:
-        status_water = '✅ Норма выполнена!'
-    elif water_percent >= 70:
-        status_water = f'⚠️ Осталось {((water_norm - water_today)/1000):.1f}л'
+    if water_today >= water_norm:
+        water_status = "💧 Отлично! Воды достаточно ✅"
+    elif water_today >= water_norm * 0.7:
+        water_status = f"💧 Хорошо, но ещё {round((water_norm - water_today) / 1000, 1)}л до нормы"
     else:
-        status_water = f'🔴 Мало! Нужно ещё {((water_norm - water_today)/1000):.1f}л'
+        water_status = f"💧 Мало воды! Нужно ещё {round((water_norm - water_today) / 1000, 1)}л"
     
-    ax3.text(50, -0.5, status_water, ha='center', va='center', 
-            color='white', fontsize=11, fontweight='bold')
+    goal_display = GOAL_DISPLAY.get(user.goal, user.goal)
     
-    # === ГРАФИК 4: ДИНАМИКА ЗА НЕДЕЛЮ ===
-    ax4 = fig.add_subplot(2, 2, 4)
-    
-    if days_data:
-        sorted_days = sorted(days_data.keys())
-        dates = [d.strftime('%d.%m') for d in sorted_days]
-        week_calories = [days_data[d]['calories'] for d in sorted_days]
-        
-        ax4.axhline(y=user.daily_calories, color='#FF5722', linestyle='--', 
-                   linewidth=2, alpha=0.7, label='Норма')
-        
-        ax4.plot(dates, week_calories, marker='o', color='#4CAF50', 
-                linewidth=2, markersize=8, label='Калории')
-        
-        # Закрашиваем область
-        ax4.fill_between(dates, week_calories, user.daily_calories, 
-                         where=[c > user.daily_calories for c in week_calories],
-                         color='#FF5722', alpha=0.2, label='Перебор')
-        ax4.fill_between(dates, week_calories, user.daily_calories, 
-                         where=[c <= user.daily_calories for c in week_calories],
-                         color='#4CAF50', alpha=0.2, label='Недобор')
-        
-        ax4.set_title('📈 Динамика калорий за неделю', color='white', fontsize=13, fontweight='bold')
-        ax4.set_xlabel('Дата', color='white', fontsize=10)
-        ax4.set_ylabel('Ккал', color='white', fontsize=10)
-        ax4.tick_params(colors='white')
-        ax4.legend(loc='upper right', facecolor='#1a1a2e', edgecolor='white', 
-                  labelcolor='white', fontsize=9)
-        ax4.grid(True, alpha=0.1, color='white')
-    else:
-        ax4.text(0.5, 0.5, 'Нет данных\nза неделю', 
-                ha='center', va='center', color='white', fontsize=14)
-        ax4.set_title('📈 Динамика калорий за неделю', color='white', fontsize=13, fontweight='bold')
-    
-    # === НАСТРОЙКА ОБЩЕГО ВИДА ===
-    plt.tight_layout()
-    plt.subplots_adjust(top=0.92)
-    
-    # Сохраняем график в буфер
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='#1a1a2e')
-    buf.seek(0)
-    plt.close()
-    
-    # === ТЕКСТОВАЯ СВОДКА ===
-    caption = f"📊 **Твоя статистика за {today.strftime('%d.%m.%Y')}**\n\n"
-    caption += f"🔥 Калории: **{round(total_calories, 1)}** / {user.daily_calories} ккал\n"
-    caption += f"🥩 Белки: **{round(total_protein, 1)}** / {user.daily_protein}г\n"
-    caption += f"🧈 Жиры: **{round(total_fat, 1)}** / {user.daily_fat}г\n"
-    caption += f"🍞 Углеводы: **{round(total_carbs, 1)}** / {user.daily_carbs}г\n"
-    caption += f"💧 Вода: **{round(water_today/1000, 1)}**л / {round(water_norm/1000, 1)}л\n"
-    
-    remaining = user.daily_calories - total_calories
-    if remaining > 200:
-        caption += "\n✅ Ты в норме! Можно еще поесть 😊"
-    elif remaining >= 0:
-        caption += "\n🎯 Почти точно! Можно остановиться."
-    else:
-        caption += "\n⚠️ Перебор! Завтра постарайся меньше."
-    
-    await context.bot.send_photo(
+    await context.bot.send_message(
         chat_id=chat_id,
-        photo=buf,
-        caption=caption,
-        parse_mode='Markdown'
+        text=f"📊 Твоя статистика за сегодня:\n"
+             f"Цель: {goal_display}\n\n"
+             f"🔥 Калории: {round(total_calories, 1)} / {user.daily_calories} ккал (осталось {round(remaining_cal, 1)})\n"
+             f"🥩 Белки: {round(total_protein, 1)} / {user.daily_protein}г (осталось {round(remaining_protein, 1)})\n"
+             f"🧈 Жиры: {round(total_fat, 1)} / {user.daily_fat}г (осталось {round(remaining_fat, 1)})\n"
+             f"🍞 Углеводы: {round(total_carbs, 1)} / {user.daily_carbs}г (осталось {round(remaining_carbs, 1)})\n\n"
+             f"💧 Вода: {round(water_today / 1000, 1)}л из {round(water_norm / 1000, 1)}л\n"
+             f"{water_status}\n\n"
+             f"{status}"
     )
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
