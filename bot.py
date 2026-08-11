@@ -1545,33 +1545,109 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.strip()
     chat_id = update.effective_chat.id
     
-    # 🔥 ПРОВЕРЯЕМ СНАЧАЛА — ЭТО ШАГ РЕГИСТРАЦИИ?
-    if context.user_data.get('step') == 'profile_data':
-        await handle_profile_input(update, context)
-        return
+    # --- ПРОВЕРКА: ЭТО ДАННЫЕ ДЛЯ ПРОФИЛЯ? ---
+    parts = text.split()
+    if len(parts) == 4:
+        sex = parts[0].upper()
+        if sex in ['М', 'Ж']:
+            try:
+                age = int(parts[1])
+                height = float(parts[2])
+                weight = float(parts[3])
+                # Проверяем, что значения реалистичные
+                if 10 <= age <= 120 and 50 <= height <= 250 and 20 <= weight <= 300:
+                    # Это похоже на данные профиля!
+                    context.user_data['step'] = 'profile_data'
+                    await handle_profile_input(update, context)
+                    return
+            except ValueError:
+                pass
     
+    # --- ЭТО ВВОД ВЕСА? ---
     if context.user_data.get('step') == 'weight_input':
         await handle_weight_input(update, context)
         return
     
-    # ВОДА
+    # --- ЭТО ВОДА? ---
     if text.lower().startswith('вода'):
         await add_water(update, context)
         return
     
-    # ПРОДУКТЫ
-    parts = text.split()
+    # --- ЭТО ПРОДУКТ? ---
     if len(parts) >= 2:
         try:
             product_name = ' '.join(parts[:-1])
             amount = float(parts[-1])
-            # ... остальной код для продуктов ...
+            
+            if amount <= 0 or amount > 5000:
+                await context.bot.send_message(chat_id=chat_id, text="❌ Количество должно быть от 1 до 5000 (грамм или мл).")
+                return
+            
+            found_key, product_data, source = find_product_in_db(product_name, context)
+            if product_data:
+                context.user_data['product_name'] = product_name
+                context.user_data['weight'] = amount
+                
+                is_drink = product_data.get('category') == 'drink'
+                unit_display = "мл" if is_drink else "г"
+                
+                if is_drink:
+                    calories = product_data['calories'] * (amount / 100)
+                    protein = product_data.get('protein', 0) * (amount / 100)
+                    fat = product_data.get('fat', 0) * (amount / 100)
+                    carbs = product_data.get('carbs', 0) * (amount / 100)
+                    
+                    meal = Meal(
+                        user_id=update.effective_user.id,
+                        product_name=found_key,
+                        weight=amount,
+                        cooking_method='raw',
+                        calories=calories,
+                        protein=protein,
+                        fat=fat,
+                        carbs=carbs
+                    )
+                    session.add(meal)
+                    session.commit()
+                    
+                    hint = ""
+                    if found_key == 'кофе':
+                        hint = "\n\n☕ По умолчанию: кофе с молоком и сахаром (35 ккал)\nБез молока: 'кофе без молока'\nБез сахара: 'кофе без сахара'\nЧёрный: 'кофе черный'"
+                    elif found_key == 'чай':
+                        hint = "\n\n🍵 По умолчанию: чёрный чай\nС молоком: 'чай с молоком'\nС сахаром: 'чай с сахаром'"
+                    elif found_key in ['пиво', 'водка', 'вино', 'коньяк', 'виски', 'ром', 'джин', 'текила', 'ликер', 'мартини', 'шампанское']:
+                        hint = f"\n\n🍷 {found_key.capitalize()} — {amount} мл"
+                    
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"✅ Добавлено!\nПродукт: {found_key}\nОбъём: {amount} {unit_display}\n🔥 Калорийность: {round(calories, 1)} ккал\n🥩 Белки: {round(protein, 1)}г\n🧈 Жиры: {round(fat, 1)}г\n🍞 Углеводы: {round(carbs, 1)}г{hint}"
+                    )
+                    return
+                else:
+                    keyboard = [
+                        [InlineKeyboardButton("🥩 Сырой", callback_data='raw')],
+                        [InlineKeyboardButton("🍲 Вареный", callback_data='boiled')],
+                        [InlineKeyboardButton("🍳 Жареный", callback_data='fried')],
+                        [InlineKeyboardButton("🍟 Фритюр", callback_data='deep_fried')],
+                        [InlineKeyboardButton("🔥 Запеченный", callback_data='baked')],
+                        [InlineKeyboardButton("💨 На пару", callback_data='steamed')],
+                    ]
+                    reply_markup = InlineKeyboardMarkup(keyboard)
+                    await context.bot.send_message(chat_id=chat_id, text=f"Выбери способ приготовления для {product_name} ({amount}г):", reply_markup=reply_markup)
+                    context.user_data['step'] = 'cooking_method'
+                    return
+            else:
+                await context.bot.send_message(chat_id=chat_id, text=f"❌ Продукт '{product_name}' не найден.\nПопробуй написать по-другому:\n- На английском (avocado, tofu)\n- Или добавь вручную командой /add_my_product")
+                return
         except ValueError:
             pass
     
-    # ОСТАЛЬНЫЕ ШАГИ
+    # --- ДРУГИЕ ШАГИ ---
     step = context.user_data.get('step')
-    if step == 'meal':
+    if step == 'profile_data':
+        await handle_profile_input(update, context)
+        return
+    elif step == 'meal':
         await handle_meal_input(update, context)
         return
     elif step == 'add_product':
@@ -1580,7 +1656,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif step == 'cooking_method':
         return
     
-    # ЕСЛИ НИЧЕГО НЕ ПОДОШЛО
+    # --- ЕСЛИ НИЧЕГО НЕ ПОДОШЛО ---
     await context.bot.send_message(
         chat_id=chat_id,
         text="Я не понимаю эту команду.\n"
