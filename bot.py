@@ -3,6 +3,9 @@ import logging
 import requests
 import urllib.parse
 import json
+import matplotlib.pyplot as plt
+import io
+from datetime import datetime, timedelta
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
@@ -1718,12 +1721,13 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     today = datetime.now().date()
-    meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).all()
+    meals_today = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= today).order_by(Meal.meal_time.asc()).all()
     
-    total_calories = sum(m.calories for m in meals)
-    total_protein = sum(m.protein for m in meals)
-    total_fat = sum(m.fat for m in meals)
-    total_carbs = sum(m.carbs for m in meals)
+    # ---- СТАТИСТИКА ЗА СЕГОДНЯ ----
+    total_calories = sum(m.calories for m in meals_today)
+    total_protein = sum(m.protein for m in meals_today)
+    total_fat = sum(m.fat for m in meals_today)
+    total_carbs = sum(m.carbs for m in meals_today)
     
     water_entries = session.query(Water).filter_by(user_id=user_id).all()
     water_today = sum(w.amount for w in water_entries if w.created_at.date() == today)
@@ -1734,6 +1738,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     remaining_fat = user.daily_fat - total_fat
     remaining_carbs = user.daily_carbs - total_carbs
     
+    # ---- ТЕКСТОВАЯ СТАТИСТИКА ----
     if remaining_cal > 200:
         status = "✅ Ты в норме! Можно еще поесть 😊"
     elif 0 <= remaining_cal <= 200:
@@ -1750,11 +1755,124 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     goal_display = GOAL_DISPLAY.get(user.goal, user.goal)
     
-    await context.bot.send_message(
-        chat_id=chat_id,
-        text=f"📊 Твоя статистика за сегодня:\nЦель: {goal_display}\n\n🔥 Калории: {round(total_calories, 1)} / {user.daily_calories} ккал (осталось {round(remaining_cal, 1)})\n🥩 Белки: {round(total_protein, 1)} / {user.daily_protein}г (осталось {round(remaining_protein, 1)})\n🧈 Жиры: {round(total_fat, 1)} / {user.daily_fat}г (осталось {round(remaining_fat, 1)})\n🍞 Углеводы: {round(total_carbs, 1)} / {user.daily_carbs}г (осталось {round(remaining_carbs, 1)})\n\n💧 Вода: {round(water_today / 1000, 1)}л из {round(water_norm / 1000, 1)}л\n{water_status}\n\n{status}"
+    text_response = (
+        f"📊 Твоя статистика за сегодня:\nЦель: {goal_display}\n\n"
+        f"🔥 Калории: {round(total_calories, 1)} / {user.daily_calories} ккал (осталось {round(remaining_cal, 1)})\n"
+        f"🥩 Белки: {round(total_protein, 1)} / {user.daily_protein}г (осталось {round(remaining_protein, 1)})\n"
+        f"🧈 Жиры: {round(total_fat, 1)} / {user.daily_fat}г (осталось {round(remaining_fat, 1)})\n"
+        f"🍞 Углеводы: {round(total_carbs, 1)} / {user.daily_carbs}г (осталось {round(remaining_carbs, 1)})\n\n"
+        f"💧 Вода: {round(water_today / 1000, 1)}л из {round(water_norm / 1000, 1)}л\n{water_status}\n\n"
+        f"{status}"
     )
-
+    
+    await context.bot.send_message(chat_id=chat_id, text=text_response)
+    
+    # ---- ГРАФИК ЗА СЕГОДНЯ (по приёмам) ----
+    if meals_today:
+        try:
+            # Группируем приёмы по времени (завтрак, обед, ужин, перекусы)
+            meal_labels = []
+            meal_calories = []
+            
+            for meal in meals_today:
+                hour = meal.meal_time.hour
+                if 6 <= hour < 11:
+                    label = "🍳 Завтрак"
+                elif 11 <= hour < 16:
+                    label = "🍲 Обед"
+                elif 16 <= hour < 20:
+                    label = "🍽 Ужин"
+                else:
+                    label = "🍿 Перекус"
+                meal_labels.append(label)
+                meal_calories.append(round(meal.calories, 1))
+            
+            # Строим график
+            fig, ax = plt.subplots(figsize=(10, 5))
+            bars = ax.bar(meal_labels, meal_calories, color='skyblue', edgecolor='navy', alpha=0.8)
+            
+            # Добавляем линию нормы
+            ax.axhline(y=user.daily_calories, color='red', linestyle='--', linewidth=2, label=f'Норма: {user.daily_calories} ккал')
+            
+            # Подписываем значения на столбцах
+            for bar, cal in zip(bars, meal_calories):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
+                        f'{cal}', ha='center', va='bottom', fontsize=9)
+            
+            ax.set_title(f'📊 Калории по приёмам пищи ({today.strftime("%d.%m.%Y")})', fontsize=14)
+            ax.set_ylabel('Калории (ккал)', fontsize=12)
+            ax.set_xlabel('Приём пищи', fontsize=12)
+            ax.legend(loc='upper right')
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            # Сохраняем в буфер
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plt.close()
+            
+            await context.bot.send_photo(chat_id=chat_id, photo=buf, caption="📊 График калорий за сегодня")
+        except Exception as e:
+            logging.error(f"Error generating chart: {e}")
+    
+    # ---- ГРАФИК ЗА НЕДЕЛЮ ----
+    try:
+        week_ago = datetime.now() - timedelta(days=7)
+        week_meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= week_ago).all()
+        
+        if week_meals:
+            days_data = {}
+            for meal in week_meals:
+                day = meal.meal_time.strftime('%a')
+                days_data[day] = days_data.get(day, 0) + meal.calories
+            
+            # Сортируем дни недели
+            day_order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+            sorted_days = []
+            sorted_calories = []
+            
+            # Находим текущий день недели и строим неделю
+            today_weekday = datetime.now().strftime('%a')
+            # Переводим на русский
+            weekdays_ru = {'Mon': 'Пн', 'Tue': 'Вт', 'Wed': 'Ср', 'Thu': 'Чт', 'Fri': 'Пт', 'Sat': 'Сб', 'Sun': 'Вс'}
+            
+            # Заполняем данные за последние 7 дней
+            for i in range(7):
+                day = (datetime.now() - timedelta(days=6-i)).strftime('%a')
+                day_ru = weekdays_ru.get(day, day)
+                sorted_days.append(day_ru)
+                sorted_calories.append(days_data.get(day, 0))
+            
+            # Строим график
+            fig, ax = plt.subplots(figsize=(10, 5))
+            bars = ax.bar(sorted_days, sorted_calories, color='lightgreen', edgecolor='darkgreen', alpha=0.8)
+            
+            # Линия нормы
+            ax.axhline(y=user.daily_calories, color='red', linestyle='--', linewidth=2, label=f'Норма: {user.daily_calories} ккал')
+            
+            # Подписываем значения
+            for bar, cal in zip(bars, sorted_calories):
+                ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 5,
+                        f'{round(cal, 0)}', ha='center', va='bottom', fontsize=9)
+            
+            ax.set_title('📈 Калории за неделю', fontsize=14)
+            ax.set_ylabel('Калории (ккал)', fontsize=12)
+            ax.set_xlabel('День недели', fontsize=12)
+            ax.legend(loc='upper right')
+            ax.grid(axis='y', linestyle='--', alpha=0.3)
+            
+            plt.tight_layout()
+            
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', dpi=100)
+            buf.seek(0)
+            plt.close()
+            
+            await context.bot.send_photo(chat_id=chat_id, photo=buf, caption="📈 График калорий за неделю")
+    except Exception as e:
+        logging.error(f"Error generating weekly chart: {e}")
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
