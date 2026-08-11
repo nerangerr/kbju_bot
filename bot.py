@@ -1060,11 +1060,12 @@ async def handle_profile_input(update: Update, context: ContextTypes.DEFAULT_TYP
         height = float(parts[2])
         weight = float(parts[3])
         
-        if age < 10 or age > 120 or height < 50 or height > 250 or weight < 20 or weight > 300:
+        # 🔥 ИЗМЕНЕНО: вес до 999 кг
+        if age < 10 or age > 120 or height < 50 or height > 250 or weight < 20 or weight > 999:
             await context.bot.send_message(
                 chat_id=update.effective_chat.id,
                 text="❌ Что-то не так с данными. Проверь:\n"
-                     "Возраст: 10-120 лет\nРост: 50-250 см\nВес: 20-300 кг\n"
+                     "Возраст: 10-120 лет\nРост: 50-250 см\nВес: 20-999 кг\n"
                      "Попробуй еще раз: Ж 18 171 58"
             )
             return
@@ -1662,7 +1663,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
              "Просто напиши продукт и вес (например: Гречка 100)\n"
              "Или /profile для заполнения профиля"
     )
-    
+
 async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
