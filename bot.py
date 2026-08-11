@@ -621,16 +621,19 @@ def calculate_calories_and_bju(product_name, weight, cooking_method, product_dat
     base_protein = product_data.get('protein', 0)
     base_fat = product_data.get('fat', 0)
     base_carbs = product_data.get('carbs', 0)
+    
     cooking_info = get_cooking_factor(product_data, cooking_method)
     factor = cooking_info['factor']
     oil_add = cooking_info['oil_add']
+    
     raw_weight = weight / factor if factor != 0 else weight
+    
     total_calories = (base_calories * raw_weight / 100) + (oil_add * weight / 100)
     total_protein = base_protein * raw_weight / 100
-    total_fat = base_fat * raw_weight / 100 + (oil_add * weight / 100) / 9 if oil_add > 0 else 0
+    total_fat = (base_fat * raw_weight / 100) + ((oil_add * weight / 100) / 9 if oil_add > 0 else 0)
     total_carbs = base_carbs * raw_weight / 100
+    
     return total_calories, total_protein, total_fat, total_carbs, base_calories
-
 # ===================== ИСТОРИЯ ПРИЁМОВ =====================
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
@@ -1515,8 +1518,8 @@ async def handle_meal_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
         product_name = ' '.join(parts[:-1])
         weight = float(parts[-1])
         
-        if weight <= 0 or weight > 5000:
-            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Вес должен быть от 1 до 5000 грамм.")
+        if weight <= 0 or weight > 10000:
+            await context.bot.send_message(chat_id=update.effective_chat.id, text="❌ Вес должен быть от 1 до 10000 грамм.")
             return
         
         context.user_data['product_name'] = product_name.lower()
@@ -1582,8 +1585,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             product_name = ' '.join(parts[:-1])
             amount = float(parts[-1])
             
-            if amount <= 0 or amount > 5000:
-                await context.bot.send_message(chat_id=chat_id, text="❌ Количество должно быть от 1 до 5000 (грамм или мл).")
+            if amount <= 0 or amount > 10000:
+                await context.bot.send_message(chat_id=chat_id, text="❌ Количество должно быть от 1 до 10000 (грамм или мл).")
                 return
             
             found_key, product_data, source = find_product_in_db(product_name, context)
