@@ -1554,9 +1554,8 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 age = int(parts[1])
                 height = float(parts[2])
                 weight = float(parts[3])
-                # Проверяем, что значения реалистичные
-                if 10 <= age <= 120 and 50 <= height <= 250 and 20 <= weight <= 300:
-                    # Это похоже на данные профиля!
+                # 🔥 ИЗМЕНЕНО: вес до 999 кг
+                if 10 <= age <= 120 and 50 <= height <= 250 and 20 <= weight <= 999:
                     context.user_data['step'] = 'profile_data'
                     await handle_profile_input(update, context)
                     return
@@ -1663,6 +1662,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
              "Просто напиши продукт и вес (например: Гречка 100)\n"
              "Или /profile для заполнения профиля"
     )
+    
 async def handle_cooking_method(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
