@@ -1012,6 +1012,9 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = session.query(User).filter_by(telegram_id=user_id).first()
     chat_id = update.effective_chat.id
     
+    # ВСЕГДА устанавливаем шаг для обработки ввода
+    context.user_data['step'] = 'profile_data'
+    
     if user:
         activity_display = {
             '1.2': '🛋 Сидячий',
@@ -1048,7 +1051,6 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
                  "Напиши свой пол (М/Ж), возраст, рост (в см), вес (в кг) через пробел.\n"
                  "Пример: Ж 18 171 58"
         )
-        context.user_data['step'] = 'profile_data'
 
 async def handle_profile_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
