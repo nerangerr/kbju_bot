@@ -1433,8 +1433,9 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
     yesterday = today - timedelta(days=1)
     day_before_yesterday = today - timedelta(days=2)
 
-    two_days_ago = now - timedelta(days=2)
-    meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= two_days_ago).all()
+    # 🔥 МЕНЯЕМ: проверяем за сегодня И вчера (не позавчера!)
+    # Собираем данные за последние 2 дня (вчера и сегодня)
+    meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= yesterday).all()
 
     if not meals:
         await context.bot.send_message(chat_id=chat_id, text="📊 Нет данных за последние 2 дня для анализа.\n\nДобавь приёмы пищи, чтобы я мог составить план!", reply_markup=main_menu_keyboard())
@@ -1446,12 +1447,27 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
         days_data[day] = days_data.get(day, 0) + meal.calories
 
     overeat_days = []
-    for day in [yesterday, day_before_yesterday]:
+    # Проверяем вчера и сегодня
+    for day in [yesterday, today]:
         if day in days_data and days_data[day] > user.daily_calories:
             overeat_days.append(days_data[day] - user.daily_calories)
 
-    if len(overeat_days) >= 2:
-        avg_overeat = sum(overeat_days) / len(overeat_days)
+    # 🔥 Если есть 2 дня переедания (вчера И сегодня) ИЛИ (вчера И позавчера)
+    # Просто проверяем, что есть хотя бы 2 дня переедания в сумме
+    # Для этого считаем общее количество дней переедания за последние 2 дня
+    total_overeat_days = 0
+    for day in [yesterday, today]:
+        if day in days_data and days_data[day] > user.daily_calories:
+            total_overeat_days += 1
+
+    if total_overeat_days >= 2:
+        # Вычисляем средний перебор
+        overeat_values = []
+        for day in [yesterday, today]:
+            if day in days_data and days_data[day] > user.daily_calories:
+                overeat_values.append(days_data[day] - user.daily_calories)
+        
+        avg_overeat = sum(overeat_values) / len(overeat_values)
 
         last_plan = session.query(DailyPlan).filter_by(user_id=user_id).order_by(DailyPlan.created_at.desc()).first()
         if last_plan and last_plan.created_at.date() == yesterday:
@@ -1486,9 +1502,16 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
         session.add(new_plan)
         session.commit()
 
+        # Определяем дни, которые вызвали переедание
+        overeat_days_names = []
+        if yesterday in days_data and days_data[yesterday] > user.daily_calories:
+            overeat_days_names.append("вчера")
+        if today in days_data and days_data[today] > user.daily_calories:
+            overeat_days_names.append("сегодня")
+
         response = f"📅 **План питания на завтра** (адаптирован под твой перебор)\n"
         response += f"🔥 Твоя норма: {user.daily_calories} ккал\n"
-        response += f"📉 Средний перебор за 2 дня: {round(avg_overeat)} ккал\n"
+        response += f"📉 Переедание за {', '.join(overeat_days_names)}: {round(avg_overeat)} ккал в среднем\n"
         if last_plan and last_plan.created_at.date() == yesterday:
             response += f"⚠️ Ты уже получал план вчера — дефицит увеличен на 10% от перебора\n"
         response += f"🎯 Цель на завтра: {target_calories} ккал\n\n"
@@ -1501,8 +1524,7 @@ async def check_overeating(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await context.bot.send_message(chat_id=chat_id, text=response, reply_markup=main_menu_keyboard())
     else:
-        await context.bot.send_message(chat_id=chat_id, text=f"✅ Ты в норме! Перееданий за последние 2 дня: {len(overeat_days)}\nПродолжай следить за питанием! 💪", reply_markup=main_menu_keyboard())
-
+        await context.bot.send_message(chat_id=chat_id, text=f"✅ Ты в норме! Перееданий за последние 2 дня: {total_overeat_days}\nПродолжай следить за питанием! 💪", reply_markup=main_menu_keyboard())
 # --- ОСНОВНЫЕ ФУНКЦИИ ---
 async def add_meal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(chat_id=update.effective_chat.id, text="🍽 Напиши, что ты съел, в формате:\nПродукт вес (например: Гречка 100)\nЯ спрошу способ приготовления.")
@@ -1966,24 +1988,34 @@ async def send_daily_plan(app: Application):
     now = datetime.now()
     today = now.date()
     yesterday = today - timedelta(days=1)
-    day_before = today - timedelta(days=2)
     
     for user in users:
         user_id = user.telegram_id
-        meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= now - timedelta(days=2)).all()
+        # Проверяем за вчера И сегодня
+        meals = session.query(Meal).filter_by(user_id=user_id).filter(Meal.meal_time >= yesterday).all()
         days_data = {}
         for meal in meals:
             day = meal.meal_time.date()
             days_data[day] = days_data.get(day, 0) + meal.calories
         
-        overeat_days = []
-        for day in [yesterday, day_before]:
+        total_overeat_days = 0
+        for day in [yesterday, today]:
             if day in days_data and days_data[day] > user.daily_calories:
-                overeat_days.append(days_data[day] - user.daily_calories)
+                total_overeat_days += 1
         
-        if len(overeat_days) >= 2:
-            await app.bot.send_message(chat_id=user_id, text="📅 Напоминание: у тебя было переедание 2 дня подряд. Воспользуйся командой /plan, чтобы получить персонализированный план питания на сегодня.")
-
+        if total_overeat_days >= 2:
+            try:
+                # Создаём контекст для вызова check_overeating
+                # Имитируем вызов команды /plan
+                context = ContextTypes.DEFAULT_TYPE()
+                context.user_data = {}
+                # Просто отправляем сообщение
+                await app.bot.send_message(
+                    chat_id=user_id,
+                    text="📅 **Напоминание!** У тебя было переедание 2 дня подряд.\nВоспользуйся командой /plan, чтобы получить персонализированный план питания на сегодня."
+                )
+            except Exception as e:
+                logging.error(f"Failed to send daily plan to {user_id}: {e}")
 # --- ЗАПУСК БОТА ---
 def main():
     try:
