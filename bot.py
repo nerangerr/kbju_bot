@@ -778,8 +778,9 @@ async def handle_weight_input(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id = update.effective_chat.id
         weight = float(update.message.text.replace(',', '.'))
 
-        if weight < 20 or weight > 300:
-            await context.bot.send_message(chat_id=chat_id, text="❌ Вес должен быть от 20 до 300 кг. Попробуй снова:")
+        # 🔥 ИЗМЕНЕНО: вес до 999 кг
+        if weight < 20 or weight > 999:
+            await context.bot.send_message(chat_id=chat_id, text="❌ Вес должен быть от 20 до 999 кг. Попробуй снова:")
             return
 
         weight_entry = WeightEntry(user_id=user_id, weight=weight)
